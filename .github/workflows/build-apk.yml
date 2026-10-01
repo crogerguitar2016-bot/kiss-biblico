@@ -1,0 +1,192 @@
+name: Gerar APK Kiss
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+
+      - name: Instalar dependências do Linux
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            wget \
+            curl \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            ninja-build \
+            build-essential \
+            zlib1g-dev \
+            libffi-dev \
+            libssl-dev \
+            libncurses-dev
+
+
+      - name: Preparar Android SDK
+        run: |
+          set -e
+
+          SDK_ROOT="$HOME/android-sdk"
+
+          mkdir -p "$SDK_ROOT/cmdline-tools"
+
+          wget -q \
+            https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip \
+            -O /tmp/android-tools.zip
+
+          unzip -q \
+            /tmp/android-tools.zip \
+            -d /tmp/android-tools
+
+          mkdir -p \
+            "$SDK_ROOT/cmdline-tools/latest"
+
+          mv \
+            /tmp/android-tools/cmdline-tools/* \
+            "$SDK_ROOT/cmdline-tools/latest/"
+
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+
+
+      - name: Instalar Android 36
+        run: |
+          set -e
+
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;37.0.0"
+
+
+      - name: Configurar Rust
+        uses: dtolnay/rust-toolchain@stable
+
+
+      - name: Instalar ferramentas Python
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+          python -m pip install \
+            "Cython==0.29.34"
+
+          python -m pip install \
+            git+https://github.com/kivy/buildozer.git
+
+
+      - name: Preparar python-for-android
+        run: |
+          set -e
+
+          rm -rf "$HOME/p4a"
+
+          git clone \
+            --depth 1 \
+            --branch develop \
+            https://github.com/kivy/python-for-android.git \
+            "$HOME/p4a"
+
+          echo "=== COMMIT DO P4A ==="
+          git -C "$HOME/p4a" rev-parse HEAD
+
+
+      - name: Conferir arquivos do Kiss
+        run: |
+          set -e
+
+          test -f main.py
+          test -f buildozer.spec
+          test -f icon.png
+
+          test -f data/quiz_biblico.json
+          test -f assets/imagens/kiss_logo.png
+
+          test -f app/interface.py
+          test -f app/controlador.py
+          test -f app/caminhos.py
+
+          python -m compileall -q app
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          banco = json.loads(
+              Path(
+                  "data/quiz_biblico.json"
+              ).read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          assert banco["total_livros"] == 66
+          assert banco["total_perguntas"] == 1980
+
+          print("66 livros: OK")
+          print("1.980 perguntas: OK")
+          print("Código Python: OK")
+          PY
+
+
+      - name: Compilar APK Kiss
+        env:
+          ANDROID_HOME: /home/runner/android-sdk
+          ANDROID_SDK_ROOT: /home/runner/android-sdk
+        run: |
+          set -e
+
+          buildozer android debug
+
+
+      - name: Mostrar APK gerado
+        if: success()
+        run: |
+          echo "=== APK GERADO ==="
+
+          find bin \
+            -type f \
+            -name "*.apk" \
+            -print \
+            -exec ls -lh {} \;
+
+
+      - name: Salvar APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kiss-APK
+          path: bin/*.apk
+          if-no-files-found: error

@@ -1,0 +1,26 @@
+# Build
+.buildozer/
+bin/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Saves do jogador
+saves/
+
+# Backups locais
+backup/
+
+# Logs
+*.log
+
+# Arquivos-fonte usados apenas para gerar o banco
+data/Quiz_Biblia_66_Livros_1980_Perguntas.pdf
+data/quiz_biblico.txt
+
+# Editor / sistema
+.vscode/
+.idea/
+.DS_Store
