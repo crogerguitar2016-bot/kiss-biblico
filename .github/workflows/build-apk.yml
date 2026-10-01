@@ -79,6 +79,22 @@ jobs:
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
 
+          # Compatibilidade com Buildozer.
+          # O Buildozer procura:
+          # android-sdk/tools/bin/sdkmanager
+          #
+          # As ferramentas modernas ficam em:
+          # android-sdk/cmdline-tools/latest/
+          rm -rf "$SDK_ROOT/tools"
+
+          ln -s             "$SDK_ROOT/cmdline-tools/latest"             "$SDK_ROOT/tools"
+
+          echo "=== SDKMANAGER MODERNO ==="
+          ls -l             "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+
+          echo "=== CAMINHO COMPATÍVEL COM BUILDOZER ==="
+          ls -l             "$SDK_ROOT/tools/bin/sdkmanager"
+
 
       - name: Instalar Android 36
         run: |
